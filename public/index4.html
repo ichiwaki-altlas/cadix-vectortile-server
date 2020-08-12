@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>Mapbox GL JS Examples</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='//api.tiles.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.js'></script>
+    <link href='//api.tiles.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.css' rel='stylesheet' />
+    <!-- <script src="//d3js.org/d3.v5.min.js"></script>
+    <script src="//unpkg.com/topojson-client@3"></script> -->
+    <script src="https://unpkg.com/deck.gl@^8.0.0/dist.min.js"></script>
+    <script src="https://unpkg.com/nebula.gl@0.19.0/dist/index.js"></script>
+    <script src="https://unpkg.com/geobuf@3.0.1/dist/geobuf.js"></script>
+    <script src="https://unpkg.com/pbf@3.0.5/dist/pbf.js"></script>
+    
+    <style type="text/css">
+        body {
+          width: 100vw;
+          height: 100vh;
+          margin: 0;
+          overflow: hidden;
+        }
+        .deck-tooltip {
+          font-family: Helvetica, Arial, sans-serif;
+          padding: 6px !important;
+          margin: 8px;
+          max-width: 300px;
+          font-size: 10px;
+        }
+      </style>
+  </head>
+<body>
+
+<div id='map'></div>
+<script>
+const {DeckGL} = deck;
+const { EditableGeoJsonLayer, DrawPolygonMode } = 'nebula.gl';
+
+const basemapLayer = new deck.TileLayer({
+    data: [
+        "http://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "http://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "http://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "http://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    ],
+    minZoom: 0,
+    maxZoom: 23,
+    tileSize: 256,
+
+    renderSubLayers: props => {
+          const {
+            bbox: {west, south, east, north}
+          } = props.tile;
+
+          return new deck.BitmapLayer(props, {
+            data: null,
+            image: props.data,
+            bounds: [west, south, east, north]
+          });
+    }
+});
+const t2houseLayer = new deck.MVTLayer({
+    id: 'townii_poly_house',
+    data: `http://localhost:3000/tile/townii/poly_house/{z}/{x}/{y}.mvt`,
+    minZoom: 16,
+    maxZoom: 23,
+    getLineColor: [192, 192, 192],
+    getFillColor: [140, 170, 180],
+    getLineWidth: 0,
+    opacity: 0.5,
+
+    pickable: true,
+    // onHover: updateTooltip
+    onClick: (feature, opt) => {
+      console.log(feature, opt)
+    },
+});
+
+const t2roadLLayer = new deck.MVTLayer({
+    id: 'townii_line_road_L',
+    data: `http://localhost:3000/tile/townii/line_road_large/{z}/{x}/{y}.mvt`,
+    minZoom: 10,
+    maxZoom: 23,
+    getLineColor: [192, 192, 192],
+    getFillColor: [140, 170, 180],
+
+    getLineWidth: f => {
+        switch (f.properties.class) {
+        case 'street':
+            return 6;
+        case 'motorway':
+            return 10;
+        default:
+            return 1;
+        }
+    },
+    lineWidthMinPixels: 1,
+
+    pickable: true,
+    // onHover: updateTooltip
+    onClick: (feature, opt) => {
+      console.log(feature, opt)
+    },
+});
+
+const t2roadMLayer = new deck.MVTLayer({
+    id: 'townii_line_road_M',
+    data: `http://localhost:3000/tile/townii/line_road_medium/{z}/{x}/{y}.mvt`,
+    minZoom: 14,
+    maxZoom: 23,
+    getLineColor: [192, 192, 192],
+    getFillColor: [140, 170, 180],
+
+    getLineWidth: f => {
+        switch (f.properties.class) {
+        case 'street':
+            return 6;
+        case 'motorway':
+            return 10;
+        default:
+            return 1;
+        }
+    },
+    lineWidthMinPixels: 1,
+
+    pickable: true,
+    // onHover: updateTooltip
+    onClick: (feature, opt) => {
+      console.log(feature, opt)
+    },
+});
+
+const t2roadSLayer = new deck.MVTLayer({
+    id: 'townii_line_road_S',
+    data: `http://localhost:3000/tile/townii/line_road_small/{z}/{x}/{y}.mvt`,
+    minZoom: 16,
+    maxZoom: 23,
+    getLineColor: [192, 192, 192],
+    getFillColor: [140, 170, 180],
+
+    getLineWidth: f => {
+        switch (f.properties.class) {
+        case 'street':
+            return 6;
+        case 'motorway':
+            return 10;
+        default:
+            return 1;
+        }
+    },
+    lineWidthMinPixels: 1,
+
+    pickable: true,
+    // onHover: updateTooltip
+    onClick: (feature, opt) => {
+      console.log(feature, opt)
+    },
+});
+
+const msMessenLayer = new deck.MVTLayer({
+    id: 'ms_messen',
+    data: `http://localhost:3000/tile/ms/messen/{z}/{x}/{y}.mvt`,
+    minZoom: 12,
+    maxZoom: 23,
+    getLineColor: [200,200,100],
+    getFillColor: [140, 170, 180],
+
+    getLineWidth: f => {
+        return 2;
+    },
+    lineWidthMinPixels: 1,
+
+    pickable: true,
+    // onHover: updateTooltip
+    onClick: (feature, opt) => {
+      console.log(feature, opt)
+    },
+});
+
+const map = new DeckGL({
+    // mapboxApiAccessToken: 'pk.eyJ1Ijoic2hpbWl6dSIsImEiOiJjam95MDBhamYxMjA1M2tyemk2aHMwenp5In0.i2kMIJulhyPLwp3jiLlpsA',
+    mapStyle: '',
+    initialViewState: {
+        latitude: 35.12,
+        longitude: 136.93,
+        zoom: 12,
+        maxZoom: 22,
+        // pitch: 45
+    },
+    controller: true,
+    layers: [basemapLayer, t2houseLayer, t2roadLLayer, t2roadMLayer, t2roadSLayer, msMessenLayer],
+    getTooltip
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/feature')
+    .then(res => res.arrayBuffer())
+    .then(data => {
+        const geojson = geobuf.decode(new Pbf(data));
+        const layer = new EditableGeoJsonLayer({
+            id: 'geojson-layer',
+            data: geojson,
+            mode: DrawPolygonMode,
+            // selectedFeatureIndexes,
+
+            onEdit: ({ updatedData }) => {
+            this.setState({
+                data: updatedData,
+            });
+            },
+        });
+    });
+});
+
+
+// ズームイベント
+// map.on('zoom', () => {
+//     // 現在のズームレベル取得
+//     console.log('zoom:', map.getZoom());
+// });
+
+function getTooltip({object}) {
+      return object && `Average Property Value
+        ${object.properties.valuePerSqm}
+        Growth
+        ${Math.round(object.properties.growth * 100)}`;
+    }
+
+// map.addControl(new mapboxgl.NavigationControl());
+</script>
+
+</body>
+</html>

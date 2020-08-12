@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>Mapbox GL JS Examples</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='//api.tiles.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.js'></script>
+    <link href='//api.tiles.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="//d3js.org/d3.v5.min.js"></script>
+    <script src="//unpkg.com/topojson-client@3"></script>
+    <style>
+        body { margin:0; padding:0; height:100vh; }
+        #map { position:absolute; top:0; bottom:0; width:100%; }
+    </style>
+</head>
+<body>
+
+<div id='map'></div>
+<script>
+
+var map = new mapboxgl.Map({
+    'container': 'map',
+    'zoom': 12,
+    'center': [136.8, 35.2], // New York
+    'style': {
+        'version': 8,
+        'sources': {
+            'carto-dark': {
+                'type': 'raster',
+                'tiles': [
+                    "http://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+                    "http://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+                    "http://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+                    "http://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+                ]
+            },
+            'townii': {
+                'type': 'vector',
+                'tiles': [
+                    "http://localhost:3000/tile/townii/{z}/{x}/{y}.mvt"
+                ]
+            },
+            'mapserver': {
+                'type': 'vector',
+                'tiles': [
+                    "http://localhost:3000/tile/ms/{z}/{x}/{y}.mvt"
+                ]
+            },
+        },
+        'layers': [{
+            'id': 'carto-dark-layer',
+            'type': 'raster',
+            'source': 'carto-dark',
+            'minzoom': 0,
+            'maxzoom': 22
+        },{
+            'id': 'postgis-house-layer',
+            'type': 'fill',
+            'source': 'townii',
+            // ST_AsMVT() uses 'default' as layer name
+            'source-layer': 'poly_house', 
+            'minzoom': 16,
+            'maxzoom': 22,
+            'paint': {
+                'fill-opacity': 0.7,
+                'fill-color': 'gray',
+                // 'fill-width': 1
+            }
+        },{
+            'id': 'postgis-large-road-layer',
+            'type': 'line',
+            'source': 'townii',
+            // ST_AsMVT() uses 'default' as layer name
+            'source-layer': 'line_road_large', 
+            'minzoom': 10,
+            'maxzoom': 22,
+            'paint': {
+                'line-opacity': 0.7,
+                'line-color': 'white',
+                'line-width': 1
+            }
+        },{
+            'id': 'postgis-medium-road-layer',
+            'type': 'line',
+            'source': 'townii',
+            // ST_AsMVT() uses 'default' as layer name
+            'source-layer': 'line_road_medium', 
+            'minzoom': 14,
+            'maxzoom': 22,
+            'paint': {
+                'line-opacity': 0.7,
+                'line-color': 'blue',
+                'line-width': 1
+            }
+        },{
+            'id': 'postgis-small-road-layer',
+            'type': 'line',
+            'source': 'townii',
+            // ST_AsMVT() uses 'default' as layer name
+            'source-layer': 'line_road_small', 
+            'minzoom': 16,
+            'maxzoom': 22,
+            'paint': {
+                'line-opacity': 0.7,
+                'line-color': 'red',
+                'line-width': 1
+            }
+        },{
+            'id': 'mapserver-messen',
+            'type': 'line',
+            'source': 'mapserver',
+            'source-layer': 'messen', 
+            'minzoom': 10,
+            'maxzoom': 22,
+            'paint': {
+                'line-opacity': 0.7,
+                'line-color': 'yellow',
+                'line-width': 1
+            }
+        }]
+    }
+});
+
+// ズームイベント
+map.on('zoom', () => {
+    // 現在のズームレベル取得
+    console.log('zoom:', map.getZoom());
+});
+
+map.addControl(new mapboxgl.NavigationControl());
+
+const bbox = document.body.getBoundingClientRect();
+const width = bbox.width;
+const height = bbox.height
+// Setup our svg layer that we can manipulate with d3
+const container = map.getCanvasContainer()
+    
+const svg = d3.select(container).append("svg").attr("width",width).attr("height",height);
+// canvas.width = width;
+// canvas.height = height
+// const ctx = canvas.getContext('2d')
+// we calculate the scale given mapbox state (derived from viewport-mercator-project's code)
+// to define a d3 projection
+getD3 = () => {
+    const bbox = document.body.getBoundingClientRect();
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    // 512 is hardcoded tile size, might need to be 256 or changed to suit your map config
+    const scale = (512) * 0.5 / Math.PI * Math.pow(2, zoom);
+
+    const d3projection = d3.geoMercator()
+    .center([center.lng, center.lat])
+    .translate([bbox.width/2, bbox.height/2])
+    .scale(scale);
+
+    return d3projection;
+}
+// calculate the original d3 projection
+// const d3Projection = getD3();
+
+const path = d3.geoPath()
+
+const url = "/feature";
+render = async () => {
+    const bbox = map.getBounds();
+    const sw = bbox.getSouthWest();
+    const ne = bbox.getNorthEast();
+    console.log('bbox', bbox);
+
+    try {
+        const root = await d3.json(url + `?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}`);
+        let geojson;
+        try {
+            geojson = topojson.feature(root, root.objects.messen);
+        } catch (err) {
+            console.error(err);
+            return;
+        }
+
+        const d3Projection = getD3();
+        // path.projection(d3Projection)
+
+        const lines = svg.selectAll("path")
+                .data(geojson.features)
+                .enter()
+                .append("path")
+                //  .attr("class", function(d) {return d.properties.routes_r_1;})
+                .attr("d", path)
+                .attr("stroke", "pink")
+                .attr("stroke-width", 2)
+                .attr("fill", "green")
+                .on('mousemove', function(d) {
+                    var mouse = d3.mouse(svg.node()).map(function(d) {
+                        return parseInt(d);
+                      });
+                    tooltip.classed('hidden', false)
+                        .attr('style', 'left:' + (mouse[0] + 15) + 'px; top:' + (mouse[1] - 35) + 'px')
+                        .html(d.properties.routes_r_1);
+                 })
+                 .on('mouseout', function() {
+                    tooltip.classed('hidden', true);;
+                 });
+        function update() {
+            lines.attr("d", path);
+        }
+        update();
+        /*
+        ctx.clearRect(0, 0, width, height)
+        
+        ctx.fillStyle = "#0082a3";
+        ctx.strokeStyle = "#004d60"
+        points.features.forEach(function(d) {
+            var p = d3Projection(d.geometry.coordinates)
+            ctx.beginPath()
+            ctx.arc(p[0], p[1], 6, 0, Math.PI*2)
+            ctx.fill()
+            ctx.stroke()
+        })
+        */
+    } catch (err) {
+        throw err;
+    }
+}
+
+// re-render our visualization whenever the view changes
+map.on("viewreset", function() {
+    render()
+})
+map.on("moveend", function() {
+    render()
+})
+
+// render our initial visualization
+render()
+</script>
+
+</body>
+</html>

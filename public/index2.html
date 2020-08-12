@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<head>
+<meta charset="utf-8">
+<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+<title>MapboxGL & D3.js - point</title>
+    <script src='//api.tiles.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.js'></script>
+    <link href='//api.tiles.mapbox.com/mapbox-gl-js/v1.11.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="//d3js.org/d3.v5.min.js"></script>
+    <script src="//unpkg.com/topojson-client@3"></script>
+<style>    
+html, body, #wrapper {
+    width: 100%;
+    height: 100%;
+    padding: 0px;
+    margin:0px;  
+}
+#map { 
+  position:relative; 
+  width: 100%;
+  height: 100%;
+  margin: auto auto;
+}
+svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+</style>
+</head>
+
+<body>
+<div id="wrapper">
+    <div id="map"></div>    
+</div>    
+
+<script>
+let map;
+// d3.json("landprice.geojson").then(mapDraw);
+d3.json("/feature").then(mapDraw);
+
+getD3 = () => {
+    const bbox = document.body.getBoundingClientRect();
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    // 512 is hardcoded tile size, might need to be 256 or changed to suit your map config
+    const scale = (512) * 0.5 / Math.PI * Math.pow(2, zoom);
+
+    const d3projection = d3.geoMercator()
+    .center([center.lng, center.lat])
+    .translate([bbox.width/2, bbox.height/2])
+    .scale(scale);
+
+    return d3projection;
+}
+// calculate the original d3 projection
+// const d3Projection = getD3();
+
+const path = d3.geoPath()
+
+function mapDraw(data){
+    const geojson = topojson.feature(data, data.objects.messen);
+    //mapboxgs トークン
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic2hpbWl6dSIsImEiOiJjam95MDBhamYxMjA1M2tyemk2aHMwenp5In0.i2kMIJulhyPLwp3jiLlpsA'
+    
+    //Setup mapbox-gl map
+    map = new mapboxgl.Map({
+        container: 'map', // container id
+        style: 'mapbox://styles/mapbox/streets-v8',
+        center: [136.93, 35.12],
+        zoom: 14,
+    });
+    
+    map.addControl(new mapboxgl.NavigationControl());
+    
+    const d3Projection = getD3();
+    path.projection(d3Projection)
+
+    var container = map.getCanvasContainer()
+    var svg = d3.select(container).append("svg")
+    
+    var lines = svg.selectAll("path")
+        .data(geojson.features)
+        .enter()
+        .append("path")
+        // .attr("r", 10)
+        .attr("d", path)
+        .attr("stroke", "black")
+        .attr("stroke-width", 2)
+        // .attr("fill", "red")
+        // .attr("opacity", 0.7)
+    
+    function update() {
+        path.projection(getD3());
+        lines.attr("d", path);
+        // circle
+        // .attr("cx", function(d) { return project(d.geometry.coordinates[0]).x; })
+        // .attr("cy", function(d) { return project(d.geometry.coordinates[0]).y; })
+    }
+    
+    //マップイベントにアップデート関数を束縛
+    map.on("viewreset", update)
+    map.on("moveend", update)
+    
+    //初期レンダリング
+    update()
+        
+    function project(d) {
+        return map.project(new mapboxgl.LngLat(+d[0], +d[1]));
+    }
+}
+
+    
+</script>
+</body>
