@@ -15,28 +15,22 @@ const TownIITileRequestHandler = require('./handlers/TownIITileRequestHandler');
 const MapserverTileRequestHandler = require('./handlers/MapserverTileRequestHandler');
 const OSMTileRequestHandler = require('./handlers/OSMTileRequestHandler');
 
+const dbConfig = {
+    user: 'postgres',
+    password: 'postgres',
+    host: '172.19.128.1',
+    port: 5433,
+}
 // DB
-this.towniiPool = new Pool({
+this.towniiPool = new Pool({...{
     database: 'townii_nagoya',
-    user: 'postgres',
-    password: 'postgres',
-    host: '172.21.48.1',
-    port: 5433,
-});
-this.msPool = new Pool({
+}, ...dbConfig});
+this.msPool = new Pool({...{
     database: 'mapserver203',
-    user: 'postgres',
-    password: 'postgres',
-    host: '172.21.48.1',
-    port: 5433,
-});
-this.osmPool = new Pool({
+}, ...dbConfig});
+this.osmPool = new Pool({...{
     database: 'osm_chubu',
-    user: 'postgres',
-    password: 'postgres',
-    host: '172.21.48.1',
-    port: 5433,
-});
+}, ...dbConfig});
 
 // 静的ファイルのルーティング
 fastify.register(require('fastify-static'), {
