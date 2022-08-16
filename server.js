@@ -16,17 +16,17 @@ const MapserverTileRequestHandler = require('./handlers/MapserverTileRequestHand
 const OSMTileRequestHandler = require('./handlers/OSMTileRequestHandler');
 
 const dbConfig = {
-    user: 'postgres',
-    password: 'postgres',
-    host: '172.19.128.1',
-    port: 5433,
+    user: 'mapserver',
+    password: 'CADIX2user',
+    host: '192.168.0.120',
+    port: 35432,
 }
 // DB
 this.towniiPool = new Pool({...{
     database: 'townii_nagoya',
 }, ...dbConfig});
 this.msPool = new Pool({...{
-    database: 'mapserver203',
+    database: 'mapserver',
 }, ...dbConfig});
 this.osmPool = new Pool({...{
     database: 'osm_chubu',
@@ -213,6 +213,52 @@ fastify.get('/feature/:table', async (req, reply) => {
         .compress(Buffer.from(buffer));
 });
 
+fastify.get('/path/:table(\\w+).pbf', async (req, reply) => {
+    console.log(`*** /path/${req.params.table}`)
+    const bbox = req.query['bbox'] ? req.query['bbox'].split(','): null;
+    const srs = req.query['srs'] ? req.query['srs']: 3857;
+    const client = await this.msPool.connect();
+    let where = '';
+    if (bbox && bbox.length == 4) {
+        const segSize = (bbox[2] - bbox[0]) / 4;
+        where = `WHERE the_geom && ST_Transform(ST_MakeEnvelope(${bbox[0]}, ${bbox[1]}, ${bbox[2]}, ${bbox[3]}, 4326), 3857)`;
+    }
+    const query = `
+        select json_build_object(
+            'type', 'FeatureCollection',
+            'features', json_agg(ST_AsGeoJSON(t.*)::json)
+        ) AS geojson
+        from (
+            select ST_Transform(the_geom, 4326), *, 'g_messen' AS layerName from mapserver.${req.params.table}
+            ${where}
+        ) AS t
+    `;
+    // console.log(`*** SQL = ${query}`)
+    const result = await client.query(query);
+    await client.release(true);
+
+    const geojson = result.rows[0].geojson;
+    if (geojson.features == null) {
+        geojson.features = [];
+    }
+
+    // console.log('>>>geojson',geojson)
+    // const paths = geojson.features.map(f => {
+    //     return {
+    //         ...f.properties,
+    //         path: [...f.geometry.coordinates.map(c => [...c, 9])],
+    //     }
+    // })
+
+    const buffer = geobuf.encode(geojson, new Pbf());
+    reply.code(200)
+        .type('application/x-protobuf')
+        // .type('text/json')
+        .header('Access-Control-Allow-Origin', '*')
+        .compress(Buffer.from(buffer));
+        // .compress(paths);
+});
+
 // fastify.get('/feature/:layer', async (req, reply) => {
 //     console.log(`*** /feature/${req.params.table}`)
 //     const bbox = req.query['bbox'] ? req.query['bbox'].split(','): null;
@@ -243,7 +289,7 @@ fastify.get('/feature/:table', async (req, reply) => {
 // });
 
 // Run the server!
-fastify.listen(3000, '0.0.0.0', (err, address) => {
+fastify.listen(3001, '0.0.0.0', (err, address) => {
     if (err) throw err;
     fastify.log.info(`server listening on ${address}`);
 })
