@@ -18,7 +18,7 @@ const OSMTileRequestHandler = require('./handlers/OSMTileRequestHandler');
 const dbConfig = {
     user: 'mapserver',
     password: 'CADIX2user',
-    host: '192.168.0.120',
+    host: '100.102.162.100',
     port: 35432,
 }
 // DB
@@ -234,6 +234,53 @@ fastify.get('/path/:table(\\w+).pbf', async (req, reply) => {
         ) AS t
     `;
     // console.log(`*** SQL = ${query}`)
+    const result = await client.query(query);
+    await client.release(true);
+
+    const geojson = result.rows[0].geojson;
+    if (geojson.features == null) {
+        geojson.features = [];
+    }
+
+    // console.log('>>>geojson',geojson)
+    // const paths = geojson.features.map(f => {
+    //     return {
+    //         ...f.properties,
+    //         path: [...f.geometry.coordinates.map(c => [...c, 9])],
+    //     }
+    // })
+
+    const buffer = geobuf.encode(geojson, new Pbf());
+    reply.code(200)
+        .type('application/x-protobuf')
+        // .type('text/json')
+        .header('Access-Control-Allow-Origin', '*')
+        .compress(Buffer.from(buffer));
+        // .compress(paths);
+});
+
+fastify.get('/func/facilityonmessen.pbf', async (req, reply) => {
+    console.log(`*** /func/facilityonmessen`)
+    const bbox = req.query['bbox'] ? req.query['bbox'].split(','): null;
+    const srs = req.query['srs'] ? req.query['srs']: 3857;
+    const client = await this.msPool.connect();
+    let where = 'WHERE ST_Length(the_geom) > 2';
+    if (bbox && bbox.length == 4) {
+        where += ` AND the_geom && ST_Transform(ST_MakeEnvelope(${bbox[0]}, ${bbox[1]}, ${bbox[2]}, ${bbox[3]}, 4326), 3857)`;
+    }
+    const query = `
+        select json_build_object(
+            'type', 'FeatureCollection',
+            'features', json_agg(ST_AsGeoJSON(t.*)::json)
+        ) AS geojson
+        from (
+            SELECT dbf_id, 
+            degrees(ST_Azimuth(ST_StartPoint(the_geom), ST_LineInterpolatePoint(the_geom, 2 / ST_Length(the_geom)))) AS angle,
+            'facilityonmessen' AS layerName, ST_Transform(ST_LineInterpolatePoint(the_geom, 2 / ST_Length(the_geom)), 4326) AS the_geom FROM mapserver.g_messen
+            ${where}
+        ) AS t
+    `;
+    console.log(`*** SQL = ${query}`)
     const result = await client.query(query);
     await client.release(true);
 
