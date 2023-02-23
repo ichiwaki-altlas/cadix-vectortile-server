@@ -2,7 +2,7 @@ const pinoInspector = require('pino-inspector')
 const fastify = require('fastify')({
     // http2: true,
     logger: {
-        prettyPrint: true, level: 'debug', prettifier: pinoInspector
+        prettyPrint: true, level: 'info', prettifier: pinoInspector
     }
 });
 const path = require('path');
@@ -120,7 +120,6 @@ fastify.get('/tile/ms/**', async (req, reply) => {
 
     const env = handler.tileToEnvelope(tile);
     const sql = handler.envelopeToSQL(tile, env);
-    console.log(sql);
     const pbf = await handler.sqlToPbf(sql);
     await handler.release();
 
@@ -197,7 +196,6 @@ fastify.get('/feature/:table', async (req, reply) => {
             ${where}
         ) AS t
     `;
-    console.log(`*** SQL = ${query}`)
     const result = await client.query(query);
     await client.release(true);
 
@@ -280,7 +278,6 @@ fastify.get('/func/facilityonmessen.pbf', async (req, reply) => {
             ${where}
         ) AS t
     `;
-    console.log(`*** SQL = ${query}`)
     const result = await client.query(query);
     await client.release(true);
 
